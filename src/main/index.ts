@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, dialog, ipcMain } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { appGetInfoSchema, selectProjectDirectorySchema } from '../shared/contracts/ipc'
+import { registerProjectHandlers } from './ipc/project-handlers'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -48,7 +49,7 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-function registerIpcHandlers(): void {
+function registerPhase0Handlers(): void {
   ipcMain.handle('app:getInfo', (_event, payload: unknown) => {
     const parsed = appGetInfoSchema.safeParse(payload)
     if (!parsed.success) throw new Error(`Invalid IPC input for app:getInfo: ${parsed.error.message}`)
@@ -72,7 +73,8 @@ function registerIpcHandlers(): void {
 }
 
 app.whenReady().then(() => {
-  registerIpcHandlers()
+  registerPhase0Handlers()
+  registerProjectHandlers()  // Phase 1
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })

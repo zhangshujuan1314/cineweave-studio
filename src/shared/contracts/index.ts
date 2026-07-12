@@ -1,2 +1,37 @@
-export type { AppInfo, SelectProjectDirectoryResult, IpcChannel } from './ipc'
-export { IPC_CHANNELS } from './ipc'
+export type {
+  AppInfo,
+  SelectProjectDirectoryResult,
+  ProjectCreateRequest,
+  ProjectCreateResponse,
+  ProjectOpenRequest,
+  ProjectOpenResponse,
+  ProjectListRequest,
+  ProjectListResponse,
+  ProjectDeleteRequest,
+  ProjectDeleteResponse,
+  ProjectRenameRequest,
+  ProjectRenameResponse,
+  ProjectCopyRequest,
+  ProjectCopyResponse,
+  ProjectScanRequest,
+  ProjectScanResponse,
+  IpcChannel,
+} from './ipc'
+
+export {
+  IPC_CHANNELS,
+  appGetInfoSchema,
+  selectProjectDirectorySchema,
+  projectCreateRequestSchema,
+  projectCreateResponseSchema,
+  projectOpenRequestSchema,
+  projectOpenResponseSchema,
+  projectListRequestSchema,
+  projectListResponseSchema,
+  projectDeleteRequestSchema,
+  projectDeleteResponseSchema,
+  projectRenameRequestSchema,
+  projectRenameResponseSchema,
+  projectCopyRequestSchema,
+  projectScanRequestSchema,
+} from './ipc'

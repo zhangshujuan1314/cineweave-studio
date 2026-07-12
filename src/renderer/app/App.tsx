@@ -1,36 +1,49 @@
-import { useState, useEffect } from 'react'
-import type { AppInfo } from '../../shared/contracts'
+import { useState, useCallback } from 'react'
+import type { ProjectCreateResponse, ProjectOpenRequest } from '../../shared/contracts'
 import TopBar from '../components/TopBar'
-import EmptyState from '../components/EmptyState'
+import ProjectLibrary from '../features/project-library/ProjectLibrary'
 
 declare global {
   interface Window {
     cineweave: {
-      getInfo: () => Promise<AppInfo>
       selectProjectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
+      createProject: (req: { title: string; basePath: string }) => Promise<ProjectCreateResponse>
+      openProject: (req: ProjectOpenRequest) => Promise<ProjectCreateResponse>
     }
   }
 }
 
-export default function App(): React.ReactElement {
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
-  const [infoError, setInfoError] = useState<string | null>(null)
+type ProjectMeta = ProjectCreateResponse
 
-  useEffect(() => {
-    window.cineweave.getInfo()
-      .then(setAppInfo)
-      .catch((err: Error) => { setInfoError(err.message) })
+export default function App(): React.ReactElement {
+  const [projects, setProjects] = useState<ProjectMeta[]>([])
+
+  const handleNewProject = useCallback(async (title: string, directoryPath: string): Promise<void> => {
+    const result = await window.cineweave.createProject({ title, basePath: directoryPath })
+    setProjects((prev) => [result, ...prev])
+  }, [])
+
+  const handleOpenProject = useCallback(async (): Promise<void> => {
+    const dirResult = await window.cineweave.selectProjectDirectory()
+    if (!dirResult.canceled && dirResult.filePaths.length > 0) {
+      const meta = await window.cineweave.openProject({ projectPath: dirResult.filePaths[0] })
+      setProjects((prev) => {
+        const exists = prev.find((p) => p.projectId === meta.projectId)
+        return exists ? prev.map((p) => p.projectId === meta.projectId ? meta : p) : [meta, ...prev]
+      })
+    }
+  }, [])
+
+  const handleDeleteProject = useCallback((project: ProjectMeta): void => {
+    setProjects((prev) => prev.filter((p) => p.projectId !== project.projectId))
   }, [])
 
   return (
     <div className="app-shell">
-      <TopBar projectCount={0} saveStatus="idle"
-        onOpenSettings={() => {}} onOpenTasks={() => {}} />
+      <TopBar projectCount={projects.length} saveStatus="idle" onOpenSettings={() => {}} onOpenTasks={() => {}} />
       <main className="app-main">
-        <EmptyState
-          onNewProject={() => { window.cineweave.selectProjectDirectory() }}
-          onOpenProject={() => { window.cineweave.selectProjectDirectory() }}
-          appInfo={appInfo} infoError={infoError} />
+        <ProjectLibrary projects={projects} onNewProject={handleNewProject}
+          onOpenProject={handleOpenProject} onDeleteProject={handleDeleteProject} />
       </main>
     </div>
   )
