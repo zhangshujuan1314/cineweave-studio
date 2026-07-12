@@ -1,0 +1,5 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  "compilerOptions": { "outDir": "./out/preload", "rootDir": "./src", "types": ["node"] },
+  "include": ["src/preload/**/*.ts", "src/shared/**/*.ts"]
+}
