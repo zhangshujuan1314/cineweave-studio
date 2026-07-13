@@ -19,13 +19,13 @@
 | **Phase 1** | 项目、SQLite 与恢复 | better-sqlite3 5表schema，版本化 migration runner (备份/回滚)，项目 CRUD (原子创建/回收站删除)，项目库 UI (网格/列表/搜索/新建对话框) |
 | **Phase 2** | 媒体探测、代理与任务队列 | FFmpeg/ffprobe 检测+探测+转码 (参数数组)，SHA-256 指纹 (size+mtime+chunks)，持久化任务队列 (并发限制/取消/重试/中断恢复)，媒体仓库 |
 | **Phase 2.5** | Bug 修复与基础设施加固 | 修复 media_assets schema 列名不匹配，实现项目列表持久化，注册所有缺失的 IPC handlers，App 状态管理重构 |
-| **Phase 3** | 镜头、字幕、标记与时间线 | Schema V3 (shots/subtitles/markers/waveform_peaks)，SRT/VTT/ASS 字幕解析器，镜头 CRUD+拆分+合并，字幕管理，标记系统，时间线 UI，视频播放器，键盘快捷键 |
+
+| **Phase 4** | 分析领域、编辑器与命令面板 | Schema V4 (segments/storylines/storyline_segments 层级模型)，段落仓储 (CRUD+树形查询+时间重叠)，故事线仓储 (多对多关联)，Command 模式 (撤销/重做)，命令面板 (Cmd+K)，结构树 (可折叠层级视图)，工作区 UI (Timeline/Structure 切换) |
 
 ### 🔲 待完成
 
 | Phase | 范围 | 关键交付 |
 |---|---|---|
-| **Phase 4** | 分析领域、编辑器与四种视图 | **Schema V4** (segments/storylines/storyline_segments 层级模型)，**段落仓储** (CRUD+树形查询+时间重叠)，**故事线仓储** (多对多关联)，**Command 模式** (撤销/重做)，**命令面板** (Cmd+K)，**结构树** (可折叠层级视图)，**工作区 UI** (Timeline/Structure 切换)
 | **Phase 5** | AI 手动分析包与安全导入 | 分析包生成，JSON 提取+Schema 校验+语义校验，导入差异预览，填空/追加/覆盖合并 |
 | **Phase 6** | BYOK AI 与证据面板 | Provider 接口，OpenAI/Anthropic 适配器，API Key OS 保护存储，流式状态+取消+退避重试 |
 | **Phase 7** | 版本、导出、备份与交换格式 | 检查点，自动备份，项目包导出/导入，Markdown/PDF/CSV/SRT/VTT 导出 |
@@ -45,7 +45,7 @@
 | 媒体 | FFmpeg/ffprobe (参数数组，零 shell 拼接) |
 | 字幕 | SRT/VTT/ASS 解析器 (自动格式检测) |
 | 任务 | 持久化 SQLite 任务队列 (最大2并发) |
-| 校验 | Zod IPC schemas (27 通道) + 路径穿越防护 |
+| 校验 | Zod IPC schemas (37 通道) + 路径穿越防护 |
 | 测试 | Vitest + React Testing Library + Playwright |
 
 ## 架构
@@ -53,7 +53,7 @@
 ```
 src/
 ├── main/              # Electron 主进程
-│   ├── db/            # SQLite schema (V1→V2→V3→V4 migration runner
+│   ├── db/            # SQLite schema (V1→V2→V1→V2→V3→V4 migration runner
 │   ├── projects/      # 项目/镜头/字幕/标记仓储
 │   ├── media/         # FFmpeg 服务, 媒体仓库, 指纹计算
 │   ├── jobs/          # 持久化任务队列
@@ -66,7 +66,7 @@ src/
 │   ├── hooks/         # useKeyboardShortcuts
 │   └── styles/        # 设计 Token + 暗色主题
 ├── shared/            # Schema, IPC 合约, 时间工具, 媒体类型
-│   ├── contracts/     # 27 通道 Zod schemas
+│   ├── contracts/     # 37 通道 Zod schemas
 │   ├── media/         # 字幕解析器, 共享媒体类型
 │   └── time/          # 毫秒/时间码工具
 └── tests/             # 7 测试套件, 56 测试用例
