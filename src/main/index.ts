@@ -6,84 +6,37 @@ import { registerProjectHandlers } from './ipc/project-handlers'
 import { registerMediaHandlers } from './ipc/media-handlers'
 import { registerTaskHandlers } from './ipc/task-handlers'
 import { registerTimelineHandlers } from './ipc/timeline-handlers'
+import { registerSegmentHandlers } from './ipc/segment-handlers'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1280, minHeight: 720,
-    show: false,
-    title: 'CineWeave Studio',
-    backgroundColor: '#0B0D12',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      webSecurity: true
-    }
+    show: false, title: 'CineWeave Studio', backgroundColor: '#0B0D12',
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true }
   })
-
   win.on('ready-to-show', () => { win.show() })
-
-  win.webContents.on('will-navigate', (_event, url) => {
-    if (!url.startsWith('file://')) _event.preventDefault()
-  })
-
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) shell.openExternal(url).catch(() => {})
-    return { action: 'deny' }
-  })
-
-  win.webContents.on('will-redirect', (_event, url) => {
-    if (/^javascript:/i.test(url)) _event.preventDefault()
-  })
-
-  win.webContents.on('render-process-gone', (_event, details) => {
-    console.error('Renderer process gone:', details.reason, details.exitCode)
-    if (details.reason === 'crashed' || details.reason === 'oom') {
-      win.loadFile(join(__dirname, '../renderer/index.html')).catch(() => {})
-    }
-  })
-
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  win.webContents.on('will-navigate', (_e, url) => { if (!url.startsWith('file://')) _e.preventDefault() })
+  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url).catch(() => {}); return { action: 'deny' } })
+  win.webContents.on('will-redirect', (_e, url) => { if (/^javascript:/i.test(url)) _e.preventDefault() })
+  win.webContents.on('render-process-gone', (_e, d) => { if (d.reason === 'crashed' || d.reason === 'oom') win.loadFile(join(__dirname, '../renderer/index.html')).catch(() => {}) })
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  else win.loadFile(join(__dirname, '../renderer/index.html'))
   return win
 }
 
 function registerPhase0Handlers(): void {
-  ipcMain.handle('app:getInfo', (_event, payload: unknown) => {
-    const parsed = appGetInfoSchema.safeParse(payload)
-    if (!parsed.success) throw new Error(`Invalid IPC input for app:getInfo: ${parsed.error.message}`)
-    return {
-      name: 'CineWeave Studio', version: app.getVersion(),
-      platform: process.platform, arch: process.arch,
-      electronVersion: process.versions.electron,
-      nodeVersion: process.versions.node, chromeVersion: process.versions.chrome
-    }
+  ipcMain.handle('app:getInfo', (_e, payload: unknown) => {
+    appGetInfoSchema.parse(payload)
+    return { name: 'CineWeave Studio', version: app.getVersion(), platform: process.platform, arch: process.arch, electronVersion: process.versions.electron, nodeVersion: process.versions.node, chromeVersion: process.versions.chrome }
   })
-
-  ipcMain.handle('dialog:selectProjectDirectory', async (_event, payload: unknown) => {
-    const parsed = selectProjectDirectorySchema.safeParse(payload)
-    if (!parsed.success) throw new Error(`Invalid IPC input for dialog:selectProjectDirectory: ${parsed.error.message}`)
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Select Project Directory'
-    })
-    return { canceled: result.canceled, filePaths: result.filePaths }
+  ipcMain.handle('dialog:selectProjectDirectory', async (_e, payload: unknown) => {
+    selectProjectDirectorySchema.parse(payload)
+    const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title: 'Select Project Directory' })
+    return { canceled: r.canceled, filePaths: r.filePaths }
   })
-
   ipcMain.handle('dialog:selectSubtitleFile', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      title: 'Select Subtitle File',
-      filters: [
-        { name: 'Subtitle Files', extensions: ['srt', 'vtt', 'ass', 'ssa'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
-    })
-    return { canceled: result.canceled, filePaths: result.filePaths }
+    const r = await dialog.showOpenDialog({ properties: ['openFile'], title: 'Select Subtitle File', filters: [{ name: 'Subtitle Files', extensions: ['srt', 'vtt', 'ass', 'ssa'] }, { name: 'All Files', extensions: ['*'] }] })
+    return { canceled: r.canceled, filePaths: r.filePaths }
   })
 }
 
@@ -93,8 +46,8 @@ app.whenReady().then(() => {
   registerMediaHandlers()
   registerTaskHandlers()
   registerTimelineHandlers()
+  registerSegmentHandlers()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
-
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })

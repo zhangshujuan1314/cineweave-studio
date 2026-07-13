@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3'
 import { copyFileSync, unlinkSync, existsSync } from 'fs'
-
 import { getSchemaVersion, SCHEMA_VERSION } from './schema'
 
 export interface Migration {
@@ -11,148 +10,61 @@ export interface Migration {
 
 export class MigrationRunner {
   private migrations: Migration[]
-
-  constructor(migrations: Migration[]) {
-    this.migrations = [...migrations].sort((a, b) => a.version - b.version)
-  }
+  constructor(migrations: Migration[]) { this.migrations = [...migrations].sort((a, b) => a.version - b.version) }
 
   migrate(db: Database.Database, dbPath: string): { applied: number[]; errors: string[] } {
     const currentVersion = getSchemaVersion(db)
     const applied: number[] = []
     const errors: string[] = []
-
-    const pending = this.migrations.filter((m) => m.version > currentVersion)
-
-    for (const migration of pending) {
+    for (const migration of this.migrations.filter(m => m.version > currentVersion)) {
       const backupPath = dbPath + `.backup-v${currentVersion}`
       try {
-        if (existsSync(dbPath)) {
-          copyFileSync(dbPath, backupPath)
-        }
-
+        if (existsSync(dbPath)) copyFileSync(dbPath, backupPath)
         db.transaction(() => {
           migration.up(db)
-          db.prepare('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
-            migration.version,
-            Date.now()
-          )
+          db.prepare('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(migration.version, Date.now())
         })()
-
         applied.push(migration.version)
-
-        if (existsSync(backupPath)) {
-          unlinkSync(backupPath)
-        }
+        if (existsSync(backupPath)) unlinkSync(backupPath)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         errors.push(`Migration v${migration.version} (${migration.description}) failed: ${msg}`)
-
-        if (existsSync(backupPath)) {
-          db.close()
-          copyFileSync(backupPath, dbPath)
-          unlinkSync(backupPath)
-        }
+        if (existsSync(backupPath)) { db.close(); copyFileSync(backupPath, dbPath); unlinkSync(backupPath) }
         break
       }
     }
-
     return { applied, errors }
   }
 
-  validateAllMigrations(db: Database.Database): boolean {
-    const currentVersion = getSchemaVersion(db)
-    return currentVersion === SCHEMA_VERSION
-  }
+  validateAllMigrations(db: Database.Database): boolean { return getSchemaVersion(db) === SCHEMA_VERSION }
 }
 
-export const V1_MIGRATION: Migration = {
-  version: 1,
-  description: 'Baseline schema',
-  up: (_db: Database.Database) => { /* tables created by createDatabase() */ }
-}
+export const V1_MIGRATION: Migration = { version: 1, description: 'Baseline', up: () => {} }
+export const V2_MIGRATION: Migration = { version: 2, description: 'Fix media_assets columns', up: (db) => {
+  const cols = (db.prepare("PRAGMA table_info(media_assets)").all() as Array<{ name: string }>).map(c => c.name)
+  if (cols.includes('path') && !cols.includes('original_path')) { db.exec('ALTER TABLE media_assets RENAME COLUMN path TO original_path'); db.exec('ALTER TABLE media_assets ADD COLUMN relative_path TEXT') }
+  else if (!cols.includes('original_path')) { db.exec('ALTER TABLE media_assets ADD COLUMN original_path TEXT NOT NULL DEFAULT ""'); db.exec('ALTER TABLE media_assets ADD COLUMN relative_path TEXT') }
+}}
+export const V3_MIGRATION: Migration = { version: 3, description: 'Add shots/subtitles/markers/waveform', up: (db) => {
+  db.exec(`CREATE TABLE IF NOT EXISTS shots (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, index_in_project INTEGER NOT NULL DEFAULT 0, start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL, thumbnail_path TEXT, label TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', tags_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, CHECK(start_ms >= 0), CHECK(end_ms > start_ms)) STRICT`)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_shots_project ON shots(project_id)'); db.exec('CREATE INDEX IF NOT EXISTS idx_shots_time ON shots(project_id, start_ms, end_ms)')
+  db.exec(`CREATE TABLE IF NOT EXISTS subtitles (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, source TEXT NOT NULL CHECK(source IN ('embedded','imported','manual')), language TEXT, start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL, text TEXT NOT NULL, speaker TEXT, notes TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, CHECK(start_ms >= 0), CHECK(end_ms > start_ms)) STRICT`)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_subtitles_project ON subtitles(project_id)'); db.exec('CREATE INDEX IF NOT EXISTS idx_subtitles_time ON subtitles(project_id, start_ms, end_ms)')
+  db.exec(`CREATE TABLE IF NOT EXISTS markers (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, time_ms INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'note' CHECK(type IN ('note','emotion','beat','custom')), label TEXT NOT NULL DEFAULT '', color TEXT, notes TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, CHECK(time_ms >= 0)) STRICT`)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_markers_project ON markers(project_id)'); db.exec('CREATE INDEX IF NOT EXISTS idx_markers_time ON markers(project_id, time_ms)')
+  db.exec(`CREATE TABLE IF NOT EXISTS waveform_peaks (id TEXT PRIMARY KEY, media_asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE, sample_rate INTEGER NOT NULL, samples_per_peak INTEGER NOT NULL, peaks_json TEXT NOT NULL, created_at INTEGER NOT NULL) STRICT`)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_waveform_asset ON waveform_peaks(media_asset_id)')
+}}
+export const V4_MIGRATION: Migration = { version: 4, description: 'Add segments/storylines/storyline_segments + segment_id on shots', up: (db) => {
+  db.exec(`CREATE TABLE IF NOT EXISTS segments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, parent_id TEXT REFERENCES segments(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('act','sequence','scene','beat')), title TEXT NOT NULL DEFAULT '', start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL, index_in_parent INTEGER NOT NULL DEFAULT 0, function TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', tags_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, CHECK(start_ms >= 0), CHECK(end_ms > start_ms)) STRICT`)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_segments_project ON segments(project_id)'); db.exec('CREATE INDEX IF NOT EXISTS idx_segments_parent ON segments(parent_id)'); db.exec('CREATE INDEX IF NOT EXISTS idx_segments_time ON segments(project_id, start_ms, end_ms)')
+  db.exec(`CREATE TABLE IF NOT EXISTS storylines (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', color TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL) STRICT`)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_storylines_project ON storylines(project_id)')
+  db.exec(`CREATE TABLE IF NOT EXISTS storyline_segments (id TEXT PRIMARY KEY, storyline_id TEXT NOT NULL REFERENCES storylines(id) ON DELETE CASCADE, segment_id TEXT NOT NULL REFERENCES segments(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, UNIQUE(storyline_id, segment_id)) STRICT`)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_storyline_segments_storyline ON storyline_segments(storyline_id)'); db.exec('CREATE INDEX IF NOT EXISTS idx_storyline_segments_segment ON storyline_segments(segment_id)')
+  const shotCols = (db.prepare("PRAGMA table_info(shots)").all() as Array<{ name: string }>).map(c => c.name)
+  if (!shotCols.includes('segment_id')) db.exec('ALTER TABLE shots ADD COLUMN segment_id TEXT REFERENCES segments(id) ON DELETE SET NULL')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_shots_segment ON shots(segment_id)')
+}}
 
-export const V2_MIGRATION: Migration = {
-  version: 2,
-  description: 'Fix media_assets columns',
-  up: (db: Database.Database) => {
-    const columns = db.prepare("PRAGMA table_info(media_assets)").all() as Array<{ name: string }>
-    const colNames = new Set(columns.map(c => c.name))
-    if (colNames.has('path') && !colNames.has('original_path')) {
-      db.exec('ALTER TABLE media_assets RENAME COLUMN path TO original_path')
-      db.exec('ALTER TABLE media_assets ADD COLUMN relative_path TEXT')
-    } else if (!colNames.has('original_path')) {
-      db.exec('ALTER TABLE media_assets ADD COLUMN original_path TEXT NOT NULL DEFAULT ""')
-      db.exec('ALTER TABLE media_assets ADD COLUMN relative_path TEXT')
-    }
-  }
-}
-
-export const V3_MIGRATION: Migration = {
-  version: 3,
-  description: 'Add shots, subtitles, markers, waveform_peaks tables',
-  up: (db: Database.Database) => {
-    db.exec(`CREATE TABLE IF NOT EXISTS shots (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      index_in_project INTEGER NOT NULL DEFAULT 0,
-      start_ms INTEGER NOT NULL,
-      end_ms INTEGER NOT NULL,
-      thumbnail_path TEXT,
-      label TEXT NOT NULL DEFAULT '',
-      notes TEXT NOT NULL DEFAULT '',
-      tags_json TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      CHECK(start_ms >= 0),
-      CHECK(end_ms > start_ms)
-    ) STRICT`)
-    db.exec('CREATE INDEX IF NOT EXISTS idx_shots_project ON shots(project_id)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_shots_time ON shots(project_id, start_ms, end_ms)')
-
-    db.exec(`CREATE TABLE IF NOT EXISTS subtitles (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      source TEXT NOT NULL CHECK(source IN ('embedded','imported','manual')),
-      language TEXT,
-      start_ms INTEGER NOT NULL,
-      end_ms INTEGER NOT NULL,
-      text TEXT NOT NULL,
-      speaker TEXT,
-      notes TEXT NOT NULL DEFAULT '',
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      CHECK(start_ms >= 0),
-      CHECK(end_ms > start_ms)
-    ) STRICT`)
-    db.exec('CREATE INDEX IF NOT EXISTS idx_subtitles_project ON subtitles(project_id)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_subtitles_time ON subtitles(project_id, start_ms, end_ms)')
-
-    db.exec(`CREATE TABLE IF NOT EXISTS markers (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      time_ms INTEGER NOT NULL,
-      type TEXT NOT NULL DEFAULT 'note' CHECK(type IN ('note','emotion','beat','custom')),
-      label TEXT NOT NULL DEFAULT '',
-      color TEXT,
-      notes TEXT NOT NULL DEFAULT '',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      CHECK(time_ms >= 0)
-    ) STRICT`)
-    db.exec('CREATE INDEX IF NOT EXISTS idx_markers_project ON markers(project_id)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_markers_time ON markers(project_id, time_ms)')
-
-    db.exec(`CREATE TABLE IF NOT EXISTS waveform_peaks (
-      id TEXT PRIMARY KEY,
-      media_asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
-      sample_rate INTEGER NOT NULL,
-      samples_per_peak INTEGER NOT NULL,
-      peaks_json TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    ) STRICT`)
-    db.exec('CREATE INDEX IF NOT EXISTS idx_waveform_asset ON waveform_peaks(media_asset_id)')
-  }
-}
-
-export const PHASE1_MIGRATIONS: Migration[] = [V1_MIGRATION, V2_MIGRATION, V3_MIGRATION]
+export const PHASE1_MIGRATIONS: Migration[] = [V1_MIGRATION, V2_MIGRATION, V3_MIGRATION, V4_MIGRATION]

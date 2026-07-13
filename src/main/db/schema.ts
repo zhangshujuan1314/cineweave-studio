@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 const CREATE_TABLES = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -32,6 +32,7 @@ const CREATE_TABLES = [
   `CREATE TABLE IF NOT EXISTS shots (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    segment_id TEXT REFERENCES segments(id) ON DELETE SET NULL,
     index_in_project INTEGER NOT NULL DEFAULT 0,
     start_ms INTEGER NOT NULL,
     end_ms INTEGER NOT NULL,
@@ -75,6 +76,42 @@ const CREATE_TABLES = [
     CHECK(time_ms >= 0)
   ) STRICT`,
 
+  `CREATE TABLE IF NOT EXISTS segments (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parent_id TEXT REFERENCES segments(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK(kind IN ('act','sequence','scene','beat')),
+    title TEXT NOT NULL DEFAULT '',
+    start_ms INTEGER NOT NULL,
+    end_ms INTEGER NOT NULL,
+    index_in_parent INTEGER NOT NULL DEFAULT 0,
+    function TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    tags_json TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    CHECK(start_ms >= 0),
+    CHECK(end_ms > start_ms)
+  ) STRICT`,
+
+  `CREATE TABLE IF NOT EXISTS storylines (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    color TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  ) STRICT`,
+
+  `CREATE TABLE IF NOT EXISTS storyline_segments (
+    id TEXT PRIMARY KEY,
+    storyline_id TEXT NOT NULL REFERENCES storylines(id) ON DELETE CASCADE,
+    segment_id TEXT NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    UNIQUE(storyline_id, segment_id)
+  ) STRICT`,
+
   `CREATE TABLE IF NOT EXISTS waveform_peaks (
     id TEXT PRIMARY KEY,
     media_asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
@@ -110,11 +147,18 @@ const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_media_assets_project ON media_assets(project_id)`,
   `CREATE INDEX IF NOT EXISTS idx_media_assets_fingerprint ON media_assets(fingerprint)`,
   `CREATE INDEX IF NOT EXISTS idx_shots_project ON shots(project_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_shots_segment ON shots(segment_id)`,
   `CREATE INDEX IF NOT EXISTS idx_shots_time ON shots(project_id, start_ms, end_ms)`,
   `CREATE INDEX IF NOT EXISTS idx_subtitles_project ON subtitles(project_id)`,
   `CREATE INDEX IF NOT EXISTS idx_subtitles_time ON subtitles(project_id, start_ms, end_ms)`,
   `CREATE INDEX IF NOT EXISTS idx_markers_project ON markers(project_id)`,
   `CREATE INDEX IF NOT EXISTS idx_markers_time ON markers(project_id, time_ms)`,
+  `CREATE INDEX IF NOT EXISTS idx_segments_project ON segments(project_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_segments_parent ON segments(parent_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_segments_time ON segments(project_id, start_ms, end_ms)`,
+  `CREATE INDEX IF NOT EXISTS idx_storylines_project ON storylines(project_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_storyline_segments_storyline ON storyline_segments(storyline_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_storyline_segments_segment ON storyline_segments(segment_id)`,
   `CREATE INDEX IF NOT EXISTS idx_waveform_asset ON waveform_peaks(media_asset_id)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state)`,
@@ -123,30 +167,19 @@ const CREATE_INDEXES = [
 
 export function createDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath)
-
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   db.pragma('busy_timeout = 5000')
-
   db.transaction(() => {
-    for (const sql of CREATE_TABLES) {
-      db.exec(sql)
-    }
-    for (const sql of CREATE_INDEXES) {
-      db.exec(sql)
-    }
+    for (const sql of CREATE_TABLES) db.exec(sql)
+    for (const sql of CREATE_INDEXES) db.exec(sql)
   })()
-
   return db
 }
 
 export function getSchemaVersion(db: Database.Database): number {
   try {
-    const row = db
-      .prepare('SELECT MAX(version) as version FROM schema_migrations')
-      .get() as { version: number | null } | undefined
+    const row = db.prepare('SELECT MAX(version) as version FROM schema_migrations').get() as { version: number | null } | undefined
     return row?.version ?? 0
-  } catch {
-    return 0
-  }
+  } catch { return 0 }
 }

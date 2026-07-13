@@ -1,16 +1,10 @@
 import { z } from 'zod'
 
-function isPathSafe(p: string): boolean {
-  if (p.indexOf('\x00') !== -1) return false
-  if (p.indexOf('..') !== -1) return false
-  return true
-}
+function isPathSafe(p: string): boolean { return p.indexOf('\x00') === -1 && p.indexOf('..') === -1 }
 
-// Phase 0
 export const appGetInfoSchema = z.object({}).strict()
 export const selectProjectDirectorySchema = z.object({}).strict()
 
-// Phase 1: projects
 export const projectCreateRequestSchema = z.object({ title: z.string().min(1).max(255), basePath: z.string().min(1).refine(isPathSafe) }).strict()
 export const projectCreateResponseSchema = z.object({ projectId: z.string().uuid(), title: z.string(), path: z.string(), schemaVersion: z.number(), createdAt: z.number(), updatedAt: z.number() })
 export type ProjectCreateRequest = z.infer<typeof projectCreateRequestSchema>
@@ -34,10 +28,8 @@ export const projectRenameResponseSchema = z.object({ projectId: z.string().uuid
 export type ProjectRenameRequest = z.infer<typeof projectRenameRequestSchema>
 export type ProjectRenameResponse = z.infer<typeof projectRenameResponseSchema>
 
-// Phase 2: media + tasks
 export const mediaImportRequestSchema = z.object({ filePath: z.string().min(1).refine(isPathSafe) }).strict()
 export type MediaImportRequest = z.infer<typeof mediaImportRequestSchema>
-
 export const mediaRelocateRequestSchema = z.object({ assetId: z.string().uuid(), newPath: z.string().min(1).refine(isPathSafe) }).strict()
 export type MediaRelocateRequest = z.infer<typeof mediaRelocateRequestSchema>
 
@@ -45,7 +37,6 @@ export const taskListRequestSchema = z.object({}).strict()
 export const taskCancelRequestSchema = z.object({ taskId: z.string().uuid() }).strict()
 export const taskRetryRequestSchema = z.object({ taskId: z.string().uuid() }).strict()
 
-// Phase 3: shots, subtitles, markers
 export const shotCreateRequestSchema = z.object({ startMs: z.number().min(0), endMs: z.number().min(0), label: z.string().optional() }).strict()
 export const shotUpdateRequestSchema = z.object({ id: z.string().uuid(), startMs: z.number().min(0).optional(), endMs: z.number().min(0).optional(), label: z.string().optional(), notes: z.string().optional() }).strict()
 export const shotDeleteRequestSchema = z.object({ id: z.string().uuid() }).strict()
@@ -57,15 +48,10 @@ export const subtitleUpdateRequestSchema = z.object({ id: z.string().uuid(), sta
 export const subtitleDeleteRequestSchema = z.object({ id: z.string().uuid() }).strict()
 export const subtitleOffsetRequestSchema = z.object({ offsetMs: z.number() }).strict()
 
-export const markerCreateRequestSchema = z.object({ timeMs: z.number().min(0), type: z.enum(['note', 'emotion', 'beat', 'custom']).optional(), label: z.string().optional(), color: z.string().optional(), notes: z.string().optional() }).strict()
-export const markerUpdateRequestSchema = z.object({ id: z.string().uuid(), timeMs: z.number().min(0).optional(), type: z.enum(['note', 'emotion', 'beat', 'custom']).optional(), label: z.string().optional(), color: z.string().optional(), notes: z.string().optional() }).strict()
+export const markerCreateRequestSchema = z.object({ timeMs: z.number().min(0), type: z.enum(['note','emotion','beat','custom']).optional(), label: z.string().optional(), color: z.string().optional(), notes: z.string().optional() }).strict()
+export const markerUpdateRequestSchema = z.object({ id: z.string().uuid(), timeMs: z.number().min(0).optional(), type: z.enum(['note','emotion','beat','custom']).optional(), label: z.string().optional(), color: z.string().optional(), notes: z.string().optional() }).strict()
 export const markerDeleteRequestSchema = z.object({ id: z.string().uuid() }).strict()
 
-// Types
-export type AppInfo = { name: string; version: string; platform: string; arch: string; electronVersion: string; nodeVersion: string; chromeVersion: string }
-export type SelectProjectDirectoryResult = { canceled: boolean; filePaths: string[] }
-
-// Whitelist
 export const IPC_CHANNELS = [
   'app:getInfo', 'dialog:selectProjectDirectory', 'dialog:selectSubtitleFile',
   'project:create', 'project:open', 'project:list', 'project:delete', 'project:rename',
@@ -73,6 +59,10 @@ export const IPC_CHANNELS = [
   'tasks:list', 'tasks:cancel', 'tasks:retry',
   'shots:list', 'shots:create', 'shots:update', 'shots:delete', 'shots:split', 'shots:merge',
   'subtitles:list', 'subtitles:import', 'subtitles:update', 'subtitles:delete', 'subtitles:offset',
-  'markers:list', 'markers:create', 'markers:update', 'markers:delete'
+  'markers:list', 'markers:create', 'markers:update', 'markers:delete',
+  'segments:list', 'segments:tree', 'segments:create', 'segments:update', 'segments:delete', 'segments:assignShot',
+  'storylines:list', 'storylines:create', 'storylines:update', 'storylines:delete', 'storylines:addSegment', 'storylines:removeSegment'
 ] as const
 export type IpcChannel = (typeof IPC_CHANNELS)[number]
+export type AppInfo = { name: string; version: string; platform: string; arch: string; electronVersion: string; nodeVersion: string; chromeVersion: string }
+export type SelectProjectDirectoryResult = { canceled: boolean; filePaths: string[] }
