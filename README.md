@@ -18,6 +18,7 @@
 | **Phase 0** | 工程基线与安全壳 | Electron + React + TS 工程，安全 BrowserWindow (12/12 安全审计通过)，IPC 白名单 + Zod 校验，设计 Token，Vitest + Playwright |
 | **Phase 1** | 项目、SQLite 与恢复 | better-sqlite3 5表schema，版本化 migration runner (备份/回滚)，项目 CRUD (原子创建/回收站删除)，项目库 UI (网格/列表/搜索/新建对话框) |
 | **Phase 2** | 媒体探测、代理与任务队列 | FFmpeg/ffprobe 检测+探测+转码 (参数数组)，SHA-256 指纹 (size+mtime+chunks)，持久化任务队列 (并发限制/取消/重试/中断恢复)，媒体仓库 |
+| **Phase 2.5** | Bug 修复与基础设施加固 | 修复 media_assets schema 列名不匹配，实现项目列表持久化 (重启后恢复)，注册所有缺失的 IPC handlers (media:import/relocate, tasks:list/cancel/retry)，App 状态管理重构 (EmptyState/项目库/工作区切换)，新增 8 个测试用例 |
 
 ### 🔲 待完成
 
@@ -32,7 +33,7 @@
 
 ## 验证状态
 
-**36/36 单元测试通过 · main/preload/renderer 三层 typecheck 通过 · electron-vite build 通过**
+**44/44 单元测试通过 · main/preload/renderer 三层 typecheck 通过 · electron-vite build 通过**
 
 ## 技术栈
 
@@ -52,21 +53,22 @@
 ```
 src/
 ├── main/              # Electron 主进程
-│   ├── db/            # SQLite schema + migration runner
-│   ├── projects/      # 项目仓储 (CRUD, 原子创建, 回收站删除)
+│   ├── db/            # SQLite schema + migration runner (V1→V2)
+│   ├── projects/      # 项目仓储 (CRUD, 原子创建, 回收站删除, 持久化列表)
 │   ├── media/         # FFmpeg 服务, 媒体仓库, 指纹计算
-│   ├── jobs/          # 持久化任务队列
-│   └── ipc/           # 类型安全 IPC handlers
+│   ├── jobs/          # 持久化任务队列 (单例模式)
+│   └── ipc/           # 类型安全 IPC handlers (project/media/task)
 ├── preload/           # 最小化类型安全桥接 (13 API 方法)
 ├── renderer/          # React UI (关闭 Node integration)
-│   ├── app/           # App shell
+│   ├── app/           # App shell (状态管理: 库/项目切换)
 │   ├── features/      # 项目库 (网格/列表/搜索/新建)
 │   ├── components/    # TopBar, EmptyState
 │   └── styles/        # 设计 Token + 暗色主题
-├── shared/            # Schema, IPC 合约, 时间工具
+├── shared/            # Schema, IPC 合约, 时间工具, 媒体类型
 │   ├── contracts/     # 12 通道 Zod schemas + 类型
+│   ├── media/         # 共享媒体类型 (ProbeResult, StreamInfo)
 │   └── time/          # 毫秒/时间码工具
-└── tests/             # 5 测试套件, 36 测试用例
+└── tests/             # 6 测试套件, 44 测试用例
 ```
 
 ## 安全
@@ -85,7 +87,7 @@ git clone https://github.com/zhangshujuan1314/cineweave-studio.git
 cd cineweave-studio
 npm ci
 npm run dev        # 启动开发
-npm run test       # 36 tests
+npm run test       # 44 tests
 npm run typecheck  # 三层类型检查
 ```
 

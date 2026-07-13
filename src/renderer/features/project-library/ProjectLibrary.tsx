@@ -10,9 +10,10 @@ interface ProjectLibraryProps {
   onNewProject: (title: string, directoryPath: string) => Promise<void>
   onOpenProject: () => Promise<void>
   onDeleteProject: (project: ProjectMeta) => void
+  onSelectProject?: (project: ProjectMeta) => void
 }
 
-export default function ProjectLibrary({ projects, onNewProject, onOpenProject, onDeleteProject }: ProjectLibraryProps): React.ReactElement {
+export default function ProjectLibrary({ projects, onNewProject, onOpenProject, onDeleteProject, onSelectProject }: ProjectLibraryProps): React.ReactElement {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [search, setSearch] = useState('')
   const [showNewDialog, setShowNewDialog] = useState(false)
@@ -43,7 +44,15 @@ export default function ProjectLibrary({ projects, onNewProject, onOpenProject, 
       {!hasProjects && search && <div className="pl-empty"><p>No projects match your search.</p></div>}
       {hasProjects && (
         <div className={'pl-grid pl-grid-' + viewMode} role="list">
-          {filtered.map((p) => <ProjectCard key={p.projectId} project={p} viewMode={viewMode} onDelete={() => onDeleteProject(p)} />)}
+          {filtered.map((p) => (
+            <ProjectCard
+              key={p.projectId}
+              project={p}
+              viewMode={viewMode}
+              onDelete={() => onDeleteProject(p)}
+              onClick={onSelectProject ? () => onSelectProject(p) : undefined}
+            />
+          ))}
         </div>
       )}
       {showNewDialog && (

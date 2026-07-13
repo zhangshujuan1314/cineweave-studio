@@ -13,7 +13,6 @@ export class MigrationRunner {
   private migrations: Migration[]
 
   constructor(migrations: Migration[]) {
-    // Ensure sorted by version
     this.migrations = [...migrations].sort((a, b) => a.version - b.version)
   }
 
@@ -27,12 +26,10 @@ export class MigrationRunner {
     for (const migration of pending) {
       const backupPath = dbPath + `.backup-v${currentVersion}`
       try {
-        // Backup before migration
         if (existsSync(dbPath)) {
           copyFileSync(dbPath, backupPath)
         }
 
-        // Run migration in transaction
         db.transaction(() => {
           migration.up(db)
           db.prepare('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
@@ -43,7 +40,6 @@ export class MigrationRunner {
 
         applied.push(migration.version)
 
-        // Clean up backup on success
         if (existsSync(backupPath)) {
           unlinkSync(backupPath)
         }
@@ -51,14 +47,12 @@ export class MigrationRunner {
         const msg = err instanceof Error ? err.message : String(err)
         errors.push(`Migration v${migration.version} (${migration.description}) failed: ${msg}`)
 
-        // Restore from backup
         if (existsSync(backupPath)) {
           db.close()
           copyFileSync(backupPath, dbPath)
-          // Reopen handled by caller — but we already closed db here
           unlinkSync(backupPath)
         }
-        break // Stop on first failure
+        break
       }
     }
 
@@ -71,15 +65,35 @@ export class MigrationRunner {
   }
 }
 
-// Phase 1 baseline migration
+// V1: Baseline schema
 export const V1_MIGRATION: Migration = {
   version: 1,
   description: 'Baseline schema: projects, media_assets, jobs, checkpoints',
   up: (_db: Database.Database) => {
-    // Tables already created by schema.ts via createDatabase()
-    // This migration marks version 1 as applied for new databases
-    // For future migrations: add actual ALTER/CREATE statements here
+    // Tables already created by createDatabase()
   }
 }
 
-export const PHASE1_MIGRATIONS: Migration[] = [V1_MIGRATION]
+// V2: Fix media_assets columns (relative_path, original_path)
+export const V2_MIGRATION: Migration = {
+  version: 2,
+  description: 'Fix media_assets: add relative_path and original_path columns',
+  up: (db: Database.Database) => {
+    // Check if old 'path' column exists and new columns don't
+    const columns = db.prepare("PRAGMA table_info(media_assets)").all() as Array<{ name: string }>
+    const colNames = new Set(columns.map(c => c.name))
+
+    if (colNames.has('path') && !colNames.has('original_path')) {
+      // Migrate: rename path to original_path, add relative_path
+      db.exec('ALTER TABLE media_assets RENAME COLUMN path TO original_path')
+      db.exec('ALTER TABLE media_assets ADD COLUMN relative_path TEXT')
+    } else if (!colNames.has('original_path')) {
+      // Fresh table without path column (shouldn't happen, but handle it)
+      db.exec('ALTER TABLE media_assets ADD COLUMN original_path TEXT NOT NULL DEFAULT ""')
+      db.exec('ALTER TABLE media_assets ADD COLUMN relative_path TEXT')
+    }
+    // If columns already exist, this is a no-op
+  }
+}
+
+export const PHASE1_MIGRATIONS: Migration[] = [V1_MIGRATION, V2_MIGRATION]

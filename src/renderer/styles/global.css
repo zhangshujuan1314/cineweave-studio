@@ -107,3 +107,11 @@ html, body, #root {
 .dialog-path-row .dialog-input { flex: 1; }
 .dialog-error { color: var(--danger); font-size: var(--font-size-sm); }
 .dialog-footer { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6); }
+
+/* ========== Project Workspace ========== */
+.project-workspace { width: 100%; height: 100%; display: flex; flex-direction: column; padding: var(--space-6); overflow: auto; }
+.project-header { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-6); }
+.project-header h2 { font-size: var(--font-size-2xl); font-weight: 600; }
+.project-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); }
+.project-info { display: flex; gap: var(--space-4); font-size: var(--font-size-sm); color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }

@@ -6,6 +6,7 @@ interface ProjectCardProps {
   project: ProjectMeta
   viewMode: 'grid' | 'list'
   onDelete: () => void
+  onClick?: () => void
 }
 
 function formatDate(ms: number): string {
@@ -13,14 +14,20 @@ function formatDate(ms: number): string {
 }
 
 function formatPath(p: string): string {
-  const parts = p.split('/')
+  const normalized = p.split(String.fromCharCode(92)).join('/')
+  const parts = normalized.split('/')
   return parts.slice(-2).join('/')
 }
 
-export default function ProjectCard({ project, viewMode, onDelete }: ProjectCardProps): React.ReactElement {
+export default function ProjectCard({ project, viewMode, onDelete, onClick }: ProjectCardProps): React.ReactElement {
+  const handleClick = (e: React.MouseEvent): void => {
+    if ((e.target as HTMLElement).closest('.pcard-delete')) return
+    onClick?.()
+  }
+
   if (viewMode === 'list') {
     return (
-      <div className="pcard pcard-list" role="listitem">
+      <div className="pcard pcard-list" role="listitem" onClick={handleClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
         <span className="pcard-title">{project.title}</span>
         <span className="pcard-date">{formatDate(project.updatedAt)}</span>
         <span className="pcard-path">{formatPath(project.path)}</span>
@@ -29,7 +36,7 @@ export default function ProjectCard({ project, viewMode, onDelete }: ProjectCard
     )
   }
   return (
-    <div className="pcard pcard-grid" role="listitem">
+    <div className="pcard pcard-grid" role="listitem" onClick={handleClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
       <div className="pcard-preview"><div className="pcard-preview-placeholder">🎥</div></div>
       <div className="pcard-body">
         <h3 className="pcard-title">{project.title}</h3>

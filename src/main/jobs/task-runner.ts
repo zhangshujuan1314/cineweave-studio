@@ -43,12 +43,10 @@ export class TaskRunner {
     this.db = db
   }
 
-  /** Register a handler for a task type */
   registerHandler(handler: TaskHandler): void {
     this.handlers.set(handler.type, handler)
   }
 
-  /** Enqueue a new task */
   enqueue(projectId: string, type: string, payload: Record<string, unknown>): Task {
     const id = randomUUID()
     const now = Date.now()
@@ -62,14 +60,12 @@ export class TaskRunner {
     return task
   }
 
-  /** Get task by id */
   getTask(id: string): Task | null {
     const row = this.db.prepare('SELECT * FROM jobs WHERE id = ?').get(id) as Record<string, unknown> | undefined
     if (!row) return null
     return this.rowToTask(row)
   }
 
-  /** List tasks for a project */
   listByProject(projectId: string): Task[] {
     const rows = this.db.prepare(
       'SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC'
@@ -77,13 +73,18 @@ export class TaskRunner {
     return rows.map((r) => this.rowToTask(r))
   }
 
-  /** Cancel a task */
+  listAll(): Task[] {
+    const rows = this.db.prepare(
+      'SELECT * FROM jobs ORDER BY created_at DESC'
+    ).all() as Record<string, unknown>[]
+    return rows.map((r) => this.rowToTask(r))
+  }
+
   cancel(id: string): boolean {
     const task = this.getTask(id)
     if (!task) return false
     if (task.state !== 'queued' && task.state !== 'running') return false
 
-    // Cancel running process
     const running = this.running.get(id)
     if (running) {
       running.handler.cancel?.(task)
@@ -100,7 +101,6 @@ export class TaskRunner {
     return true
   }
 
-  /** Retry a failed/canceled/interrupted task */
   retry(id: string): boolean {
     const task = this.getTask(id)
     if (!task) return false
@@ -111,12 +111,10 @@ export class TaskRunner {
     return true
   }
 
-  /** Get current running count */
   get runningCount(): number {
     return this.running.size
   }
 
-  /** Recover interrupted tasks on startup */
   recoverInterrupted(): void {
     const rows = this.db.prepare(
       "SELECT * FROM jobs WHERE state IN ('running', 'interrupted')"
@@ -191,4 +189,27 @@ export class TaskRunner {
       updatedAt: row.updated_at as number
     }
   }
+}
+
+// ── Singleton ──────────────────────────────────────────────────
+
+let _runner: TaskRunner | null = null
+
+export function getTaskRunner(): TaskRunner {
+  if (!_runner) {
+    const db = new Database(':memory:')
+    db.exec(`CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, type TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'queued', progress REAL DEFAULT 0,
+      payload_json TEXT, error_json TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    ) STRICT`)
+    _runner = new TaskRunner(db)
+  }
+  return _runner
+}
+
+export function initTaskRunner(db: Database.Database): TaskRunner {
+  _runner = new TaskRunner(db)
+  return _runner
 }

@@ -3,6 +3,8 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { appGetInfoSchema, selectProjectDirectorySchema } from '../shared/contracts/ipc'
 import { registerProjectHandlers } from './ipc/project-handlers'
+import { registerMediaHandlers } from './ipc/media-handlers'
+import { registerTaskHandlers } from './ipc/task-handlers'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -74,7 +76,9 @@ function registerPhase0Handlers(): void {
 
 app.whenReady().then(() => {
   registerPhase0Handlers()
-  registerProjectHandlers()  // Phase 1
+  registerProjectHandlers()
+  registerMediaHandlers()
+  registerTaskHandlers()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })

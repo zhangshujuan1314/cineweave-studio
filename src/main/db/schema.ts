@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 const CREATE_TABLES = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -20,7 +20,8 @@ const CREATE_TABLES = [
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK(kind IN ('original','proxy','audio','subtitle')),
-    path TEXT NOT NULL,
+    relative_path TEXT,
+    original_path TEXT NOT NULL,
     fingerprint TEXT,
     duration_ms INTEGER,
     metadata_json TEXT,
@@ -52,6 +53,7 @@ const CREATE_TABLES = [
 
 const CREATE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_media_assets_project ON media_assets(project_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_media_assets_fingerprint ON media_assets(fingerprint)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state)`,
   `CREATE INDEX IF NOT EXISTS idx_checkpoints_project ON checkpoints(project_id)`
@@ -60,12 +62,10 @@ const CREATE_INDEXES = [
 export function createDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath)
 
-  // Safety and performance
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   db.pragma('busy_timeout = 5000')
 
-  // ponytail: raw SQL; add Kysely/Drizzle when query complexity warrants it
   db.transaction(() => {
     for (const sql of CREATE_TABLES) {
       db.exec(sql)

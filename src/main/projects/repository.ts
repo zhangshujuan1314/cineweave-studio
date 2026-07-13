@@ -23,6 +23,38 @@ function projectDirName(title: string): string {
 function ensureDir(p: string): void { if (!existsSync(p)) mkdirSync(p, { recursive: true }) }
 
 export class ProjectRepository {
+  private recentPaths: string[] = []
+  private readonly MAX_RECENT = 50
+
+  constructor() {
+    this.loadRecentPaths()
+  }
+
+  private getRecentPathsFile(): string {
+    return join(process.cwd(), '.cineweave-recent.json')
+  }
+
+  private loadRecentPaths(): void {
+    try {
+      const file = this.getRecentPathsFile()
+      if (existsSync(file)) {
+        const data = JSON.parse(readFileSync(file, 'utf-8'))
+        if (Array.isArray(data)) this.recentPaths = data.filter(p => typeof p === 'string')
+      }
+    } catch { /* ignore */ }
+  }
+
+  private saveRecentPaths(): void {
+    try {
+      writeFileSync(this.getRecentPathsFile(), JSON.stringify(this.recentPaths, null, 2), 'utf-8')
+    } catch { /* best effort */ }
+  }
+
+  private addRecentPath(dirPath: string): void {
+    this.recentPaths = [dirPath, ...this.recentPaths.filter(p => p !== dirPath)].slice(0, this.MAX_RECENT)
+    this.saveRecentPaths()
+  }
+
   createProject(title: string, basePath: string): ProjectCreateResponse {
     const projectId = randomUUID(); const now = Date.now()
     const dirName = projectDirName(title); const finalPath = join(basePath, dirName)
@@ -37,6 +69,7 @@ export class ProjectRepository {
       db.close()
       if (errors.length > 0) throw new Error('Migration failed: ' + errors.join('; '))
       renameSync(tmpPath, finalPath)
+      this.addRecentPath(finalPath)
       return { projectId, title, path: finalPath, schemaVersion: SCHEMA_VERSION, createdAt: now, updatedAt: now }
     } catch (err) {
       try { if (existsSync(tmpPath)) rmSync(tmpPath, { recursive: true, force: true }) } catch { /* best effort */ }
@@ -52,13 +85,38 @@ export class ProjectRepository {
     const row = db.prepare('SELECT id, title, schema_version, created_at, updated_at FROM projects WHERE id = ?').get(manifest.projectId) as { id: string; title: string; schema_version: number; created_at: number; updated_at: number } | undefined
     db.close()
     if (!row) throw new Error('Project not found in database')
+    this.addRecentPath(dirPath)
     return { projectId: row.id, title: row.title, path: dirPath, schemaVersion: row.schema_version, createdAt: row.created_at, updatedAt: row.updated_at }
   }
 
-  listProjects(): ProjectListResponse { return [] }
+  listProjects(): ProjectListResponse {
+    const results: ProjectListResponse = []
+    const seen = new Set<string>()
+
+    for (const dirPath of this.recentPaths) {
+      try {
+        if (!existsSync(dirPath)) continue
+        const manifestPath = join(dirPath, 'manifest.json')
+        if (!existsSync(manifestPath)) continue
+        const manifest = readManifest(dirPath)
+        if (seen.has(manifest.projectId)) continue
+        seen.add(manifest.projectId)
+        results.push({
+          projectId: manifest.projectId,
+          title: manifest.title,
+          path: dirPath,
+          lastOpenedAt: manifest.updatedAt
+        })
+      } catch { /* skip invalid entries */ }
+    }
+
+    return results
+  }
 
   deleteProject(dirPath: string): void {
     try { shell.trashItem(dirPath) } catch (err) { throw new Error('Failed to move to trash: ' + (err instanceof Error ? err.message : String(err))) }
+    this.recentPaths = this.recentPaths.filter(p => p !== dirPath)
+    this.saveRecentPaths()
   }
 
   renameProject(dirPath: string, newTitle: string): ProjectRenameResponse {
@@ -67,7 +125,11 @@ export class ProjectRepository {
     db.prepare('UPDATE projects SET title = ?, updated_at = ? WHERE id = ?').run(newTitle, now, manifest.projectId); db.close()
     manifest.title = newTitle; manifest.updatedAt = now; writeManifest(dirPath, manifest)
     const newPath = join(join(dirPath, '..'), projectDirName(newTitle))
-    if (dirPath !== newPath) renameSync(dirPath, newPath)
+    if (dirPath !== newPath) {
+      renameSync(dirPath, newPath)
+      this.recentPaths = this.recentPaths.map(p => p === dirPath ? newPath : p)
+      this.saveRecentPaths()
+    }
     return { projectId: manifest.projectId, title: newTitle, updatedAt: now }
   }
 }
