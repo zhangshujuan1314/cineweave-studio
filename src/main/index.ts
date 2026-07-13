@@ -5,6 +5,7 @@ import { appGetInfoSchema, selectProjectDirectorySchema } from '../shared/contra
 import { registerProjectHandlers } from './ipc/project-handlers'
 import { registerMediaHandlers } from './ipc/media-handlers'
 import { registerTaskHandlers } from './ipc/task-handlers'
+import { registerTimelineHandlers } from './ipc/timeline-handlers'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -72,6 +73,18 @@ function registerPhase0Handlers(): void {
     })
     return { canceled: result.canceled, filePaths: result.filePaths }
   })
+
+  ipcMain.handle('dialog:selectSubtitleFile', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      title: 'Select Subtitle File',
+      filters: [
+        { name: 'Subtitle Files', extensions: ['srt', 'vtt', 'ass', 'ssa'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    return { canceled: result.canceled, filePaths: result.filePaths }
+  })
 }
 
 app.whenReady().then(() => {
@@ -79,6 +92,7 @@ app.whenReady().then(() => {
   registerProjectHandlers()
   registerMediaHandlers()
   registerTaskHandlers()
+  registerTimelineHandlers()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
