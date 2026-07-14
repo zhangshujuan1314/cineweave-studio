@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:ai": "vitest run tests/unit/ai",
     "package:smoke": "electron-vite build && electron-builder --dir"
   },
   "dependencies": {
