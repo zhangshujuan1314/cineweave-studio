@@ -28,7 +28,6 @@
 | Phase | 范围 | 关键交付 |
 |---|---|---|
 | **Phase 7** | 版本、导出、备份与交换格式 | 检查点，自动备份，项目包导出/导入，Markdown/PDF/CSV/SRT/VTT 导出 |
-| **Phase 7** | 版本、导出、备份与交换格式 | 检查点，自动备份，项目包导出/导入，Markdown/PDF/CSV/SRT/VTT 导出 |
 | **Phase 8** | 发布硬化与最终验收 | 安全审计，E2E 稳定性，性能基准，跨平台打包，文档完善 |
 
 ## 验证状态
@@ -70,7 +69,7 @@ src/
 │   ├── contracts/     # 37 通道 Zod schemas
 │   ├── media/         # 字幕解析器, 共享媒体类型
 │   └── time/          # 毫秒/时间码工具
-└── tests/             # 10 测试套件, 66 测试用例
+└── tests/             # 13 测试套件, 185 测试用例
 ```
 
 ## 快捷键
@@ -94,7 +93,7 @@ git clone https://github.com/zhangshujuan1314/cineweave-studio.git
 cd cineweave-studio
 npm ci
 npm run dev        # 启动开发
-npm run test       # 56 tests
+npm run test       # 185 tests
 npm run typecheck  # 三层类型检查
 ```
 
