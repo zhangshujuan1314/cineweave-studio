@@ -46,7 +46,7 @@
 | 媒体 | FFmpeg/ffprobe (参数数组，零 shell 拼接) |
 | 字幕 | SRT/VTT/ASS 解析器 (自动格式检测) |
 | 任务 | 持久化 SQLite 任务队列 (最大2并发) |
-| 校验 | Zod IPC schemas (37 通道) + 路径穿越防护 |
+| 校验 | Zod IPC schemas (48 通道) + 路径穿越防护 |
 | 测试 | Vitest + React Testing Library + Playwright |
 
 ## 架构
