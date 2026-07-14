@@ -23,12 +23,13 @@
 | **Phase 5** | AI 分析包与安全导入 | 分析包生成器，JSON 提取+Schema 校验+语义校验，合并策略 (填空/追加/覆盖)，事务管理 (原子操作+回滚)，13个IPC通道，66个测试用例全部通过 |
 | **Phase 6** | BYOK AI 与证据面板 | Provider 接口，OpenAI/Anthropic 适配器，API Key OS 保护存储，流式状态+取消+退避重试 |
 | **Phase 7** | 版本、导出、备份与交换格式 | 检查点管理器，备份管理器，导出管理器 (Markdown/CSV/SRT/VTT)，项目包管理器 |
+| **Phase 8** | 发布硬化与最终验收 | 安全审计模块，性能基准模块，跨平台打包配置，代码签名，自动更新 |
 
 ### 🔲 待完成
 
 | Phase | 范围 | 关键交付 |
 |---|---|---|
-| **Phase 8** | 发布硬化与最终验收 | 安全审计，E2E 稳定性，性能基准，跨平台打包，文档完善 |
+| **Phase 9** | 最终发布 | 完整E2E测试，性能优化，文档完善，正式发布 |
 
 ## 验证状态
 
@@ -58,6 +59,9 @@ src/
 │   ├── jobs/          # 持久化任务队列
 │   ├── ai/            # AI 分析包, JSON 提取, 校验, 合并, 事务, Providers
 │   ├── export/        # 检查点, 备份, 导出, 项目包
+│   ├── security/      # 安全审计
+│   ├── performance/   # 性能基准
+│   ├── packaging/     # 跨平台打包配置
 │   └── ipc/           # IPC handlers (project/media/task/timeline/ai/provider/export)
 ├── preload/           # 最小化类型安全桥接 (30+ API 方法)
 ├── renderer/          # React UI
