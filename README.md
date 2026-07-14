@@ -21,12 +21,13 @@
 | **Phase 2.5** | Bug 修复与基础设施加固 | 修复 media_assets schema 列名不匹配，实现项目列表持久化，注册所有缺失的 IPC handlers，App 状态管理重构 |
 | **Phase 4** | 分析领域、编辑器与命令面板 | Schema V4 (segments/storylines/storyline_segments 层级模型)，段落仓储 (CRUD+树形查询+时间重叠)，故事线仓储 (多对多关联)，Command 模式 (撤销/重做)，命令面板 (Cmd+K)，结构树 (可折叠层级视图)，工作区 UI (Timeline/Structure 切换) |
 | **Phase 5** | AI 分析包与安全导入 | 分析包生成器，JSON 提取+Schema 校验+语义校验，合并策略 (填空/追加/覆盖)，事务管理 (原子操作+回滚)，13个IPC通道，66个测试用例全部通过 |
+| **Phase 6** | BYOK AI 与证据面板 | Provider 接口，OpenAI/Anthropic 适配器，API Key OS 保护存储，流式状态+取消+退避重试 |
 
 ### 🔲 待完成
 
 | Phase | 范围 | 关键交付 |
 |---|---|---|
-| **Phase 6** | BYOK AI 与证据面板 | Provider 接口，OpenAI/Anthropic 适配器，API Key OS 保护存储，流式状态+取消+退避重试 |
+| **Phase 7** | 版本、导出、备份与交换格式 | 检查点，自动备份，项目包导出/导入，Markdown/PDF/CSV/SRT/VTT 导出 |
 | **Phase 7** | 版本、导出、备份与交换格式 | 检查点，自动备份，项目包导出/导入，Markdown/PDF/CSV/SRT/VTT 导出 |
 | **Phase 8** | 发布硬化与最终验收 | 安全审计，E2E 稳定性，性能基准，跨平台打包，文档完善 |
 
@@ -56,8 +57,8 @@ src/
 │   ├── projects/      # 项目/镜头/字幕/标记仓储
 │   ├── media/         # FFmpeg 服务, 媒体仓库, 指纹计算
 │   ├── jobs/          # 持久化任务队列
-│   ├── ai/            # AI 分析包, JSON 提取, 校验, 合并, 事务
-│   └── ipc/           # IPC handlers (project/media/task/timeline/ai)
+│   ├── ai/            # AI 分析包, JSON 提取, 校验, 合并, 事务, Providers
+│   └── ipc/           # IPC handlers (project/media/task/timeline/ai/provider)
 ├── preload/           # 最小化类型安全桥接 (30+ API 方法)
 ├── renderer/          # React UI
 │   ├── app/           # App shell (状态管理)
