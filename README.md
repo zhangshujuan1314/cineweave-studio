@@ -33,7 +33,7 @@
 
 ## 验证状态
 
-**66/66 单元测试通过 · main/preload/renderer 三层 typecheck 通过 · 10 测试套件**
+**185/185 单元测试通过 · main/preload/renderer 三层 typecheck 通过 · 13 测试套件**
 
 ## 技术栈
 
